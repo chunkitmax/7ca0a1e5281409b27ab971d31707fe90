@@ -77,7 +77,7 @@ class DataManager:
         for index, entry in enumerate(self.data):
           if len(entry) > max_seq:
             splits = list(spliter(entry))
-            self.data = splits[0]
+            self.data[index] = splits[0]
             self.data.extend(splits[1:])
         self.data = list(filter(lambda x: len(x) > 2, self.data))
         if is_test:
