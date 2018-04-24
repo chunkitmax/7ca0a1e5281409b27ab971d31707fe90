@@ -59,11 +59,13 @@ class Trainer:
                     self.drop_rate, use_adam=True, use_cuda=self.use_cuda)
       b_perplexity = self._train(net, data_manager, self.identity)
   def _train(self, net, data_manager):
-    if identity is None:
+    if self.identity is None:
       identity = 'M2O' if self.is_many_to_one else 'M2M'
-      identity
-      identity = 'Net'+str(self.counter)
-      self.counter += 1
+      identity += '_'+str(self.learning_rate).replace('.', '')
+      identity += '_'+str(self.hidden_size)
+      identity += '_'+str(self.num_hidden_layer)
+    else:
+      identity = self.identity
     if self.use_tensorboard:
       from tensorboardX import SummaryWriter
       self.writer = SummaryWriter(identity+'_logs')

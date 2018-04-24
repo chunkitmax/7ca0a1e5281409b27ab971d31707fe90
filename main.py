@@ -12,7 +12,7 @@ parser.add_argument('-hs', '--hidden_size', default=128, type=int, help='Hidden 
 parser.add_argument('-nh', '--num_hidden', default=1, type=int, help='Number of hidden layers')
 parser.add_argument('-dr', '--drop_rate', default=0., type=float, help='Dropout drop rate')
 parser.add_argument('-id', '--identity', default=None, type=str, help='Model identity')
-parser.add_argument('-t', '--test', action='store_true', help='Text generation')
+parser.add_argument('-t', '--test', default=None, type=str, help='Test string')
 parser.add_argument('-g', '--gpu', action='store_true', help='GPU support')
 parser.add_argument('-tb', '--tensorboard', action='store_true', help='TensorBoard')
 parser.add_argument('-v', '--verbose', default=1, type=int, help='Verbose level')
@@ -36,8 +36,8 @@ def main():
                     use_cuda=Args.gpu, save_best_model=True,
                     verbose=Args.verbose, data_file_count=Args.data_file_count,
                     identity=Args.identity)
-  if Args.test:
-    trainer.test('He is the murderer', Args.mode)
+  if Args.test is not None:
+    trainer.test(Args.test, Args.mode)
   else:
     trainer.train()
 
