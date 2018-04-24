@@ -49,7 +49,7 @@ class Trainer:
       net = RNN_M2O(len(data_manager.word_list), self.embedding_len,
                     self.hidden_size, self.learning_rate, self.num_hidden_layer,
                     self.drop_rate, use_adam=True, use_cuda=self.use_cuda)
-      b_perplexity = self._train(net, data_manager, self.identity)
+      b_perplexity = self._train(net, data_manager)
     else:
       data_manager = DataManager(self.batch_size, logger=self.logger,
                                  is_many_to_one=self.is_many_to_one,
@@ -57,7 +57,7 @@ class Trainer:
       net = RNN_M2M(len(data_manager.word_list), self.embedding_len,
                     self.hidden_size, self.learning_rate, self.num_hidden_layer,
                     self.drop_rate, use_adam=True, use_cuda=self.use_cuda)
-      b_perplexity = self._train(net, data_manager, self.identity)
+      b_perplexity = self._train(net, data_manager)
   def _train(self, net, data_manager):
     if self.identity is None:
       identity = 'M2O' if self.is_many_to_one else 'M2M'
