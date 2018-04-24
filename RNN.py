@@ -9,13 +9,14 @@ from dataloader import DataManager
 
 
 class RNN_M2M(T.nn.Module):
-  def __init__(self, word_list_len, embedding_len, hidden_size=50,
-               num_layers=3, drop_rate=0., use_cuda=False, use_adam=False,
+  def __init__(self, word_list_len, embedding_len, hidden_size=50, lr=0.01,
+               num_layers=3, drop_rate=0., use_cuda=False, use_adam=True,
                use_rmsprop=False):
     super(RNN_M2M, self).__init__()
     self.word_list_len = word_list_len
     self.embedding_len = embedding_len
     self.hidden_size = hidden_size
+    self.lr = lr
     self.num_layers = num_layers
     self.drop_rate = drop_rate
     self.use_cuda = use_cuda
@@ -32,13 +33,13 @@ class RNN_M2M(T.nn.Module):
       self.cuda()
     if self.use_adam:
       self.optimizer = T.optim.Adam(filter(lambda p: p.requires_grad, self.parameters()),
-                                    lr=1e-3)
+                                    lr=self.lr)
     elif self.use_rmsprop:
       self.optimizer = T.optim.RMSprop(filter(lambda p: p.requires_grad, self.parameters()),
-                                       lr=1e-2)
+                                       lr=self.lr)
     else:
       self.optimizer = T.optim.SGD(filter(lambda p: p.requires_grad, self.parameters()),
-                                   lr=0.01, momentum=0.9, nesterov=True)
+                                   lr=self.lr, momentum=0.9, nesterov=True)
   def forward(self, inputs):
     embeddings = self.Embedding(inputs)
     output, _ = self.RNN(embeddings)
@@ -53,13 +54,14 @@ class RNN_M2M(T.nn.Module):
     return self.optimizer
 
 class RNN_M2O(T.nn.Module):
-  def __init__(self, word_list_len, embedding_len, hidden_size=50,
-               num_layers=3, drop_rate=0., use_cuda=False, use_adam=False,
+  def __init__(self, word_list_len, embedding_len, hidden_size=50, lr=0.01,
+               num_layers=3, drop_rate=0., use_cuda=False, use_adam=True,
                use_rmsprop=False):
     super(RNN_M2O, self).__init__()
     self.word_list_len = word_list_len
     self.embedding_len = embedding_len
     self.hidden_size = hidden_size
+    self.lr = lr
     self.num_layers = num_layers
     self.drop_rate = drop_rate
     self.use_cuda = use_cuda
@@ -76,13 +78,13 @@ class RNN_M2O(T.nn.Module):
       self.cuda()
     if self.use_adam:
       self.optimizer = T.optim.Adam(filter(lambda p: p.requires_grad, self.parameters()),
-                                    lr=1e-3)
+                                    lr=self.lr)
     elif self.use_rmsprop:
       self.optimizer = T.optim.RMSprop(filter(lambda p: p.requires_grad, self.parameters()),
-                                       lr=1e-2)
+                                       lr=self.lr)
     else:
       self.optimizer = T.optim.SGD(filter(lambda p: p.requires_grad, self.parameters()),
-                                   lr=0.01, momentum=0.9, nesterov=True)
+                                   lr=self.lr, momentum=0.9, nesterov=True)
   def forward(self, inputs):
     embeddings = self.Embedding(inputs)
     output, _ = self.RNN(embeddings)

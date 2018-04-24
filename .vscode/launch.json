@@ -24,7 +24,8 @@
       "args": [
         "M2O",
         "--gpu",
-        "--tensorboard"
+        "--tensorboard",
+        "--data_file_count=3"
       ]
     },
     {
@@ -35,7 +36,8 @@
       "args": [
         "M2M",
         "--gpu",
-        "--tensorboard"
+        "--tensorboard",
+        "--data_file_count=3"
       ]
     }
   ]

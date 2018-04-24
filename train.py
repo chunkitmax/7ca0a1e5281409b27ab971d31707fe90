@@ -5,6 +5,7 @@ train model
 
 import gzip
 import os
+import pickle
 import sys
 from collections import deque
 from zipfile import ZipFile
@@ -18,36 +19,49 @@ from RNN import RNN_M2M, RNN_M2O
 
 
 class Trainer:
-  def __init__(self, is_manay_to_one=True, max_epoch=5000, batch_size=10,
-               embedding_len=100, use_tensorboard=False, early_stopping_history_len=50,
-               early_stopping_allowance=5, verbose=1, save_best_model=False,
-               use_cuda=False):
+  def __init__(self, is_many_to_one=True, max_epoch=5000, batch_size=10,
+               learning_rate=.01, hidden_size=128, num_hidden_layer=1,
+               drop_rate=0., embedding_len=100, use_tensorboard=False,
+               early_stopping_history_len=7, early_stopping_allowance=3,
+               verbose=1, save_best_model=False, use_cuda=False,
+               data_file_count=-1, identity=None):
     self.logger = Logger(verbose_level=verbose)
-    self.is_manay_to_one = is_manay_to_one
+    self.is_many_to_one = is_many_to_one
     self.max_epoch = max_epoch
     self.batch_size = batch_size
+    self.learning_rate = learning_rate
+    self.hidden_size = hidden_size
+    self.num_hidden_layer = num_hidden_layer
+    self.drop_rate = drop_rate
     self.embedding_len = embedding_len
     self.use_cuda = use_cuda
     self.use_tensorboard = use_tensorboard
     self.early_stopping_history_len = early_stopping_history_len
     self.early_stopping_allowance = early_stopping_allowance
     self.save_best_model = save_best_model
-    self.counter = 0
+    self.data_file_count = data_file_count
+    self.identity = identity
   def train(self):
-    if self.is_manay_to_one:
+    if self.is_many_to_one:
       data_manager = DataManager(self.batch_size, logger=self.logger,
-                                 is_many_to_one=self.is_manay_to_one)
-      net = RNN_M2O(len(data_manager.word_list),
-                    self.embedding_len, use_adam=True, use_cuda=self.use_cuda)
-      b_perplexity = self._train(net, data_manager, 'M2O')
+                                 is_many_to_one=self.is_many_to_one,
+                                 data_file_count=self.data_file_count)
+      net = RNN_M2O(len(data_manager.word_list), self.embedding_len,
+                    self.hidden_size, self.learning_rate, self.num_hidden_layer,
+                    self.drop_rate, use_adam=True, use_cuda=self.use_cuda)
+      b_perplexity = self._train(net, data_manager, self.identity)
     else:
       data_manager = DataManager(self.batch_size, logger=self.logger,
-                                 is_many_to_one=self.is_manay_to_one)
-      net = RNN_M2M(len(data_manager.word_list),
-                    self.embedding_len, use_adam=True, use_cuda=self.use_cuda)
-      b_perplexity = self._train(net, data_manager, 'M2M')
-  def _train(self, net, data_manager, identity=None):
+                                 is_many_to_one=self.is_many_to_one,
+                                 data_file_count=self.data_file_count)
+      net = RNN_M2M(len(data_manager.word_list), self.embedding_len,
+                    self.hidden_size, self.learning_rate, self.num_hidden_layer,
+                    self.drop_rate, use_adam=True, use_cuda=self.use_cuda)
+      b_perplexity = self._train(net, data_manager, self.identity)
+  def _train(self, net, data_manager):
     if identity is None:
+      identity = 'M2O' if self.is_many_to_one else 'M2M'
+      identity
       identity = 'Net'+str(self.counter)
       self.counter += 1
     if self.use_tensorboard:
@@ -63,7 +77,7 @@ class Trainer:
     try:
       total_batch_per_epoch = len(train_data_loader)
       perplexity_history = deque(maxlen=self.early_stopping_history_len)
-      min_perplexity = 0.
+      min_perplexity = 999.
       early_stopping_violate_counter = 0
       status, _epoch_index, _perplexity_history, _min_perplexity = self._load(net, identity)
       if status:
@@ -86,13 +100,13 @@ class Trainer:
             data = data.cuda()
             label = label.cuda()
           output, predicted = net(data)
-          acc += (label.squeeze() == predicted).float().mean().data
+          acc += (label.squeeze() == predicted).float().mean().data * data.size(0)
           loss = loss_fn(output.view(-1, len(data_manager.word_list)), label.view(-1))
           optimizer.zero_grad()
           loss.backward()
           optimizer.step()
-          losses += loss.data.cpu()[0]
-          counter += 1
+          losses += loss.data.cpu()[0] * data.size(0)
+          counter += data.size(0)
           progress = min((batch_index + 1) / total_batch_per_epoch * 20., 20.)
           self.logger.d('[%s] (%3.f%%) loss: %.4f, acc: %.4f'%
                         ('>'*int(progress)+'-'*(20-int(progress)), progress * 5.,
@@ -100,6 +114,7 @@ class Trainer:
         mean_loss = losses / counter
         valid_losses = 0.
         valid_counter = 0
+        valid_acc = 0.
         # Validtion
         net.eval()
         for data, label in valid_data_loader:
@@ -109,17 +124,21 @@ class Trainer:
             data = data.cuda()
             label = label.cuda()
           output, predicted = net(data)
-          valid_losses += loss_fn(output, label.view(-1)).data.cpu()[0] * data.size(0)
+          valid_losses += loss_fn(output.view(-1, len(data_manager.word_list)), label.view(-1)) \
+                                 .data.cpu()[0] * data.size(0)
+          valid_acc += (label.squeeze() == predicted).float().mean().data * data.size(0)
           valid_counter += data.size(0)
         mean_val_loss = valid_losses/valid_counter
+        mean_val_acc = valid_acc/valid_counter
         perplexity = np.exp(mean_val_loss)
-        self.logger.d(' -- val_loss: %.4f, perplexity: %.4f'%
-                      (mean_val_loss, perplexity), reset_cursor=False)
+        self.logger.d(' -- val_loss: %.4f, val_acc: %.4f, perplexity: %.4f'%
+                      (mean_val_loss, mean_val_acc, perplexity), reset_cursor=False)
         # Log with tensorboard
         if self.use_tensorboard:
           self.writer.add_scalar('train_loss', mean_loss, epoch_index)
           self.writer.add_scalar('train_acc', acc / counter, epoch_index)
           self.writer.add_scalar('val_loss', mean_val_loss, epoch_index)
+          self.writer.add_scalar('val_acc', mean_val_acc, epoch_index)
           self.writer.add_scalar('val_perp', perplexity, epoch_index)
         # Early stopping
         if perplexity > np.mean(perplexity_history):
@@ -141,18 +160,45 @@ class Trainer:
       self.writer.close()
     self.logger.i('Finish', True)
     return np.mean(perplexity_history)
-  # def _test(self, net, data_loader, max_len=None, test_file='test_for_you_guys.csv'):
-  #   counter = 1
-  #   net.eval()
-  #   for data, _ in test_data_loader:
-  #     data = T.autograd.Variable(data)
-  #     if self.use_cuda:
-  #       data = data.cuda()
-  #     _, predicted = net(data)
-  #     for prediction in predicted.cpu().data.tolist():
-  #       sf.write('%s,%s\n'%(raw_data[counter][:-1], [key for key, value in whole_dataset.sentiments.items() if value==prediction][0]))
-  #       counter += 1
-  #   print('Finished')
+  def test(self, given_words, id, max_len=20):
+    if os.path.exists('data/word_list'):
+      word_list = pickle.load(open('data/word_list', 'rb'))
+    else:
+      raise AssertionError('word_list not found')
+    if self.is_many_to_one:
+      net = RNN_M2O(len(word_list), self.embedding_len, use_adam=True,
+                    use_cuda=self.use_cuda)
+    else:
+      net = RNN_M2M(len(word_list), self.embedding_len, use_adam=True,
+                    use_cuda=self.use_cuda)
+    status, _epoch_index, _perplexity_history, _min_perplexity = self._load(net, id)
+    if status:
+      word_index_dict = {w: i for i, w in enumerate(word_list)}
+      given_words = given_words.lower().strip().split()
+      given_words = [1]+[word_index_dict[word] if word in word_index_dict else 2
+                         for word in given_words]
+      cur_var = T.autograd.Variable(T.LongTensor([given_words]))
+      if self.use_cuda:
+        cur_var = cur_var.cuda()
+      net.eval()
+      _, predicted = net(cur_var)
+      predicted_word_idx = predicted[0, -1].cpu().data[0]
+      if predicted_word_idx > 0:
+        given_words.append(predicted_word_idx)
+        for _ in range(max_len-len(given_words)):
+          cur_var = T.autograd.Variable(T.LongTensor([given_words]))
+          if self.use_cuda:
+            cur_var = cur_var.cuda()
+          _, predicted = net(cur_var)
+          predicted_word_idx = predicted[0, -1].cpu().data[0]
+          if predicted_word_idx > 0:
+            given_words.append(predicted_word_idx)
+          else:
+            break
+      print('Text generated: %s'%(' '.join([word_list[word] for word in given_words[1:]])))
+      print('Finished')
+    else:
+      raise AssertionError('Save not found!')
   def _save(self, global_step, net, perplexity_history, min_perplexity, identity):
     T.save({
         'epoch': global_step+1,
@@ -164,13 +210,11 @@ class Trainer:
   def _load(self, net, identity):
     if os.path.exists(identity+'_best'):
       checkpoint = T.load(identity+'_best')
-      net.load_state_dict(checkpoint['state_dict'])
-      net.get_optimizer().load_state_dict(checkpoint['optimizer'])
-      return True, checkpoint['epoch'], checkpoint['perplexity_history'], \
-             checkpoint['min_perplexity']
+    elif os.path.exists(identity):
+      checkpoint = T.load(identity)
     else:
       return False, None, None, None
-
-if __name__ == '__main__':
-  trainer = Train(use_cuda=True, use_tensorboard=True)
-  trainer.train()
+    net.load_state_dict(checkpoint['state_dict'])
+    net.get_optimizer().load_state_dict(checkpoint['optimizer'])
+    return True, checkpoint['epoch'], checkpoint['perplexity_history'], \
+           checkpoint['min_perplexity']
