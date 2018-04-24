@@ -18,7 +18,7 @@ from RNN import RNN_M2M, RNN_M2O
 
 
 class Trainer:
-  def __init__(self, is_manay_to_one=True, max_epoch=5000, batch_size=100,
+  def __init__(self, is_manay_to_one=True, max_epoch=5000, batch_size=10,
                embedding_len=100, use_tensorboard=False, early_stopping_history_len=50,
                early_stopping_allowance=5, verbose=1, save_best_model=False,
                use_cuda=False):
