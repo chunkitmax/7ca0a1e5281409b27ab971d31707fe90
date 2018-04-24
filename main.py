@@ -3,7 +3,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='RNN-text-generation')
 parser.add_argument('mode', type=str, help='Many-to-One (M2O) or Many-to-Many (M2M)')
-parser.add_argument('-b', '--batch', default=50, type=int, help='Batch size')
+parser.add_argument('-b', '--batch_size', default=50, type=int, help='Batch size')
 parser.add_argument('-e', '--epoch', default=5, type=int, help='Number of epoch to train')
 parser.add_argument('-emb', '--emb_len', default=100, type=int,
                     help='Embedding length')
