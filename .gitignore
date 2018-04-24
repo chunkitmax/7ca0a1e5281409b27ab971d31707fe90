@@ -104,3 +104,5 @@ data
 __pycache__
 *.zip
 RNN_tutorial
+*_logs
+.vscode

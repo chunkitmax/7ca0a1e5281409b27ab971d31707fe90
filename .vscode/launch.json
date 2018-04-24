@@ -15,6 +15,28 @@
       "type": "python",
       "request": "launch",
       "program": "${workspaceFolder}/statistics.py",
+    },
+    {
+      "name": "Train M2O",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "args": [
+        "M2O",
+        "--gpu",
+        "--tensorboard"
+      ]
+    },
+    {
+      "name": "Train M2M",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "args": [
+        "M2M",
+        "--gpu",
+        "--tensorboard"
+      ]
     }
   ]
 }
