@@ -184,7 +184,10 @@ class Trainer:
         cur_var = cur_var.cuda()
       net.eval()
       _, predicted = net(cur_var)
-      predicted_word_idx = predicted[0, -1].cpu().data[0]
+      if self.is_many_to_one:
+        predicted_word_idx = predicted[0].cpu().data[0]
+      else:
+        predicted_word_idx = predicted[0, -1].cpu().data[0]
       if predicted_word_idx > 0:
         given_words.append(predicted_word_idx)
         for _ in range(max_len-len(given_words)):
@@ -192,7 +195,10 @@ class Trainer:
           if self.use_cuda:
             cur_var = cur_var.cuda()
           _, predicted = net(cur_var)
-          predicted_word_idx = predicted[0, -1].cpu().data[0]
+          if self.is_many_to_one:
+            predicted_word_idx = predicted[0].cpu().data[0]
+          else:
+            predicted_word_idx = predicted[0, -1].cpu().data[0]
           if predicted_word_idx > 0:
             given_words.append(predicted_word_idx)
           else:

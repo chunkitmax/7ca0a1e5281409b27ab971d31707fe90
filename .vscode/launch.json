@@ -39,6 +39,32 @@
         "--tensorboard",
         "--data_file_count=3"
       ]
+    },
+    {
+      "name": "Train M2M Test",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "args": [
+        "M2M",
+        "--gpu",
+        "--tensorboard",
+        "--data_file_count=3",
+        "--test"
+      ]
+    },
+    {
+      "name": "Train M2O Test",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "args": [
+        "M2O",
+        "--gpu",
+        "--tensorboard",
+        "--data_file_count=3",
+        "--test"
+      ]
     }
   ]
 }
