@@ -39,6 +39,7 @@ class Trainer:
     self.use_tensorboard = use_tensorboard
     self.early_stopping_history_len = early_stopping_history_len
     self.early_stopping_allowance = early_stopping_allowance
+    self.verbose = verbose
     self.save_best_model = save_best_model
     self.data_file_count = data_file_count
     self.identity = identity
@@ -71,9 +72,10 @@ class Trainer:
     if self.use_tensorboard:
       from tensorboardX import SummaryWriter
       if os.path.exists(identity+'_logs'):
-        should_rm = input(' - Log dir exists. Remove (Y/n)?')
-        if should_rm.lower() == 'y' or should_rm == '':
-          shutil.rmtree(identity+'_logs')
+        if self.verbose > 0:
+          should_rm = input(' - Log dir exists. Remove (Y/n)?')
+          if should_rm.lower() == 'y' or should_rm == '':
+            shutil.rmtree(identity+'_logs')
       self.writer = SummaryWriter(identity+'_logs')
 
     train_data_loader = data_manager.train_loader()
