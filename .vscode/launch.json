@@ -37,7 +37,7 @@
         "M2M",
         "--gpu",
         "--tensorboard",
-        "--data_file_count=3",
+        "--data_file_count=10",
         "--batch_size=10"
       ]
     },
