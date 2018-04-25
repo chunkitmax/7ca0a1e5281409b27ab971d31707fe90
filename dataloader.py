@@ -49,23 +49,26 @@ class Dataset(Data.Dataset):
 class DataManager:
   def __init__(self, batch_size=50, max_seq=30, logger=None,
                is_many_to_one=False, train_valid_ratio=.2, is_test=False,
-               data_file_count = -1):
+               data_file_count=-1):
     self.batch_size = batch_size
+    self.max_seq = max_seq
     if logger is None:
       self.logger = Logger(0)
     else:
       self.logger = logger
     self.is_test = is_test
+    self.data_file_count = data_file_count
+
     # Reserve for <sos>
-    max_seq += 1
+    self.max_seq += 1
 
     # mkdir data folder
     if not os.path.exists('data'):
       os.mkdir('data')
 
     # File path
-    file_path_prefix = 'Data/Test' if is_test else 'Data/Train'
-    file_path_subfix = '_M2O' if is_many_to_one else '_M2M'
+    self.file_path_subfix = '_M2O' if is_many_to_one else '_M2M'
+    self.file_path_prefix = 'Data/Test' if self.is_test else 'Data/Train'
 
     self.data = ''
     self.dataset = None
@@ -73,105 +76,131 @@ class DataManager:
     self.train_dataset, self.valid_dataset = None, None
     self.word_counter = None
 
-    if is_test and os.path.exists('data/test_data'):
-      self.dataset = pickle.load(open('data/test_data', 'rb'))
-    elif not is_test and os.path.exists('data/train_data'+file_path_subfix) \
-                     and os.path.exists('data/valid_data'+file_path_subfix):
-      self.train_dataset = pickle.load(open('data/train_data'+file_path_subfix, 'rb'))
-      self.valid_dataset = pickle.load(open('data/valid_data'+file_path_subfix, 'rb'))
-    else:
-      # Read zip file
-      if os.path.exists('hw4_dataset.zip'):
-        with ZipFile('hw4_dataset.zip', 'r') as zf:
-          if data_file_count < 0:
-            file_count = len(zf.filelist)
-          else:
-            file_count = data_file_count
-          self.logger.i('Start loading dataset...')
-          valid_file_counter = 0
-          for f in zf.filelist:
-            if f.file_size > 0:
-              if f.filename.startswith(file_path_prefix):
-                text = zf.read(f.filename).decode('utf-8').lower()
-                text = text[text.rindex('*end*')+len('*end*'):text.rindex('end')]
-                self.data += clean_str(text)+'\n'
-                valid_file_counter += 1
-                self.logger.i('Loading %3d docs'%(valid_file_counter))
-                if valid_file_counter >= file_count:
-                  break
-        self.data = [['<sos>']+entry.split(' ') for entry in self.data.split('\n')]
-        # Limit sentense len
-        def spliter(d):
-          for i in range(math.ceil(len(d)/max_seq)):
-            yield d[max_seq*i:max_seq*(i+1)]
-        for index, entry in enumerate(self.data):
-          if len(entry) > max_seq:
-            splits = list(spliter(entry))
-            self.data[index] = splits[0]
-            self.data.extend(splits[1:])
-        self.data = list(filter(lambda x: len(x) > 2, self.data))
-      else:
-        raise AssertionError('hw4_dataset.zip not found')
+    self._load_wordlist()
 
-    if not os.path.exists('data/word_list') and is_test:
-      raise AssertionError('word_list not found')
-    elif os.path.exists('data/word_list'):
+    if self.is_test:
+      if not self._load_dataset():
+        self._read_files()
+        self.dataset = Dataset(self.data, self.word_index_dict, is_many_to_one, max_seq-1)
+        pickle.dump(self.dataset, open('data/test_data', 'wb+'))
+    else:
+      if not self._load_dataset():
+        # Load previous split data
+        status, train_data, valid_data = self._load_data()
+        if not status: # No split data found
+          self._read_files()
+          train_data, valid_data = train_test_split(self.data,
+                                                    test_size=train_valid_ratio,
+                                                    random_state=0)
+          pickle.dump(train_data, open('data/train_data', 'wb+'))
+          pickle.dump(valid_data, open('data/valid_data', 'wb+'))
+      if not self._load_wordlist() or not os.path.exists('data/word_counter'):
+        # Generate word list
+        self.logger.i('Start counting words because word list or word counter not found...')
+        self.word_counter = Counter()
+        flatten_train_data = [x for sublist in train_data for x in sublist]
+        self.word_counter += Counter(flatten_train_data)
+        # Only keep words in training data
+        del self.word_counter['<sos>']
+        # Set min freq
+        # filtered_word_list = [k for k, v in self.word_counter.items() if v >= 3]
+        # self.word_list = ['<pad>', '<sos>', '<unk>']+filtered_word_list
+        self.word_list = ['<pad>', '<sos>', '<unk>']+list(self.word_counter.keys())
+        self.word_index_dict = {w: i for i, w in enumerate(self.word_list)}
+        # Save word list
+        pickle.dump(self.word_list, open('data/word_list', 'wb+'))
+
+        # Count words for statistics
+        flatten_valid_data = [x for sublist in valid_data for x in sublist]
+        self.word_counter += Counter(flatten_valid_data)
+        # Update unknown words for statistics
+        self.word_counter += Counter({'<unk>':0})
+        self.logger.i('Getting unknown word list...')
+        unk_word_list = list(filter(lambda p: p[0] not in self.word_list,
+                                    self.word_counter.items()))
+        self.logger.i('Start deleting words in validation set but not in training set...')
+        unk_word_list_len = len(unk_word_list)
+        for index, [k, v] in enumerate(unk_word_list):
+          del self.word_counter[k]
+          self.word_counter['<unk>'] += v
+          self.logger.i('Deleting... %5d / %5d'%(index+1, unk_word_list_len))
+        del self.word_counter['<sos>']
+        # Save word counter
+        pickle.dump(self.word_counter, open('data/word_counter', 'wb+'))
+
+        self.logger.i('Finish building word list and word counter')
+
+      if self.train_dataset is None and self.valid_dataset is None:
+        # Save training and validation dataset
+        self.train_dataset = Dataset(train_data, self.word_index_dict, is_many_to_one, max_seq-1)
+        self.valid_dataset = Dataset(valid_data, self.word_index_dict, is_many_to_one, max_seq-1)
+        pickle.dump(self.train_dataset, open('data/train_data'+self.file_path_subfix, 'wb+'))
+        pickle.dump(self.valid_dataset, open('data/valid_data'+self.file_path_subfix, 'wb+'))
+
+      self.logger.i('Finish Generating training set and validation set')
+  def _load_dataset(self):
+    if self.is_test and os.path.exists('data/test_data'):
+      self.dataset = pickle.load(open('data/test_data', 'rb'))
+    elif os.path.exists('data/train_data'+self.file_path_subfix) \
+         and os.path.exists('data/valid_data'+self.file_path_subfix):
+      self.train_dataset = pickle.load(open('data/train_data'+self.file_path_subfix, 'rb'))
+      self.valid_dataset = pickle.load(open('data/valid_data'+self.file_path_subfix, 'rb'))
+    else:
+      return False
+    self.logger.i('Dataset found!')
+    return True
+  def _load_wordlist(self):
+    if os.path.exists('data/word_list'):
       self.logger.i('Word list found!')
       self.word_list = pickle.load(open('data/word_list', 'rb'))
       self.word_index_dict = {w: i for i, w in enumerate(self.word_list)}
-      if is_test:
-        self.dataset = Dataset(self.data, self.word_index_dict, is_many_to_one, max_seq-1)
-        pickle.dump(self.dataset, open('data/test_data', 'wb+'))
-        return
+    elif self.is_test:
+      raise AssertionError('word_list not found')
+    else:
+      return False
+    return True
+  def _load_data(self):
     if os.path.exists('data/train_data') and os.path.exists('data/valid_data'):
       train_data = pickle.load(open('data/train_data', 'rb'))
       valid_data = pickle.load(open('data/valid_data', 'rb'))
       self.logger.i('Training dataset and validation dataset found!')
+      return True, train_data, valid_data
+    return False, None, None
+  def _read_files(self):
+    if os.path.exists('hw4_dataset.zip'):
+      with ZipFile('hw4_dataset.zip', 'r') as zf:
+        if self.data_file_count < 0:
+          file_count = len(zf.filelist)
+        else:
+          file_count = self.data_file_count
+        self.logger.i('Start loading dataset...')
+        valid_file_counter = 0
+        for f in zf.filelist:
+          if f.file_size > 0:
+            if f.filename.startswith(self.file_path_prefix):
+              text = zf.read(f.filename).decode('utf-8').lower()
+              text = text[text.rindex('*end*')+len('*end*'):text.rindex('end')]
+              self.data += clean_str(text)+'\n'
+              valid_file_counter += 1
+              self.logger.i('Loading %3d docs'%(valid_file_counter))
+              if valid_file_counter >= file_count:
+                break
+      self.data = [['<sos>']+entry.split(' ') for entry in self.data.split('\n')]
+      # Limit sentense len
+      def spliter(d):
+        for i in range(math.ceil(len(d)/self.max_seq)):
+          yield d[self.max_seq*i:self.max_seq*(i+1)]
+      for index, entry in enumerate(self.data):
+        if len(entry) > self.max_seq:
+          splits = list(spliter(entry))
+          self.data[index] = splits[0]
+          self.data.extend(splits[1:])
+      self.data = list(filter(lambda x: len(x) > 2, self.data))
     else:
-      train_data, valid_data = train_test_split(self.data,
-                                                test_size=train_valid_ratio,
-                                                random_state=0)
-      pickle.dump(train_data, open('data/train_data', 'wb+'))
-      pickle.dump(valid_data, open('data/valid_data', 'wb+'))
-    if self.word_list is None or not os.path.exists('data/word_counter'):
-      self.logger.i('Start counting words because word list or word counter not found...')
-      self.word_counter = Counter()
-      flatten_train_data = [x for sublist in train_data for x in sublist]
-      self.word_counter += Counter(flatten_train_data)
-      # Only keep words in training data
-      del self.word_counter['<sos>']
-      filtered_word_list = [k for k, v in self.word_counter.items() if v >= 3]
-      self.word_list = ['<pad>', '<sos>', '<unk>']+filtered_word_list
-      self.word_index_dict = {w: i for i, w in enumerate(self.word_list)}
-      pickle.dump(self.word_list, open('data/word_list', 'wb+'))
-      flatten_valid_data = [x for sublist in valid_data for x in sublist]
-      self.word_counter += Counter(flatten_valid_data)
-      # Update unknown words for statistics
-      self.word_counter += Counter({'<unk>':0})
-      self.logger.i('Getting unknown word list...')
-      unk_word_list = list(filter(lambda p: p[0] not in self.word_list, self.word_counter.items()))
-      self.logger.i('Start deleting words in validation set but not in training set...')
-      unk_word_list_len = len(unk_word_list)
-      for index, [k, v] in enumerate(unk_word_list):
-        del self.word_counter[k]
-        self.word_counter['<unk>'] += v
-        self.logger.i('Deleting... %5d / %5d'%(index+1, unk_word_list_len))
-      del self.word_counter['<sos>']
-      pickle.dump(self.word_counter, open('data/word_counter', 'wb+'))
-      self.logger.i('Finish building word list and word counter')
-
-    if self.train_dataset is None and self.valid_dataset is None:
-      self.train_dataset = Dataset(train_data, self.word_index_dict, is_many_to_one, max_seq-1)
-      self.valid_dataset = Dataset(valid_data, self.word_index_dict, is_many_to_one, max_seq-1)
-      pickle.dump(self.train_dataset, open('data/train_data'+file_path_subfix, 'wb+'))
-      pickle.dump(self.valid_dataset, open('data/valid_data'+file_path_subfix, 'wb+'))
-    self.logger.i('Finish Generating training set and validation set')
-
+      raise AssertionError('hw4_dataset.zip not found')
   def test_loader(self):
     return Data.DataLoader(self.dataset, self.batch_size, False)
-
   def train_loader(self):
     return Data.DataLoader(self.train_dataset, self.batch_size, True)
-
   def valid_loader(self):
     return Data.DataLoader(self.valid_dataset, self.batch_size, False)
