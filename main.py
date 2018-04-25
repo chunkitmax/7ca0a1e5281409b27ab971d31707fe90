@@ -7,6 +7,7 @@ parser.add_argument('-b', '--batch_size', default=50, type=int, help='Batch size
 parser.add_argument('-e', '--epoch', default=5, type=int, help='Number of epoch to train')
 parser.add_argument('-emb', '--emb_len', default=100, type=int,
                     help='Embedding length')
+parser.add_argument('-es', '--early_stopping', action='store_true', help='Enable early stopping')
 parser.add_argument('-lr', '--learning_rate', default=.01, type=float, help='Learning rate')
 parser.add_argument('-hs', '--hidden_size', default=128, type=int, help='Hidden layer size')
 parser.add_argument('-nh', '--num_hidden', default=1, type=int, help='Number of hidden layers')
@@ -35,7 +36,7 @@ def main():
                     drop_rate=Args.drop_rate, use_tensorboard=Args.tensorboard,
                     use_cuda=Args.gpu, save_best_model=True,
                     verbose=Args.verbose, data_file_count=Args.data_file_count,
-                    identity=Args.identity)
+                    identity=Args.identity, early_stopping=Args.early_stopping)
   if Args.test:
     start_text = input('Text starts with: ')
     trainer.test(start_text, 'M2M_best')

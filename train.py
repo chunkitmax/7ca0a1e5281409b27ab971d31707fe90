@@ -25,7 +25,7 @@ class Trainer:
                drop_rate=0., embedding_len=100, use_tensorboard=False,
                early_stopping_history_len=7, early_stopping_allowance=3,
                verbose=1, save_best_model=False, use_cuda=False,
-               data_file_count=-1, identity=None):
+               data_file_count=-1, identity=None, early_stopping=False):
     self.logger = Logger(verbose_level=verbose)
     self.is_many_to_one = is_many_to_one
     self.max_epoch = max_epoch
@@ -42,6 +42,7 @@ class Trainer:
     self.save_best_model = save_best_model
     self.data_file_count = data_file_count
     self.identity = identity
+    self.early_stopping = early_stopping
   def train(self):
     if self.is_many_to_one:
       data_manager = DataManager(self.batch_size, logger=self.logger,
@@ -149,7 +150,7 @@ class Trainer:
           self.writer.add_scalar('val_acc', mean_val_acc, epoch_index)
           self.writer.add_scalar('val_perp', perplexity, epoch_index)
         # Early stopping
-        if perplexity > np.mean(perplexity_history):
+        if self.early_stopping and perplexity > np.mean(perplexity_history):
           early_stopping_violate_counter += 1
           if early_stopping_violate_counter >= self.early_stopping_allowance:
             self.logger.i('Early stopping...', True)
@@ -174,11 +175,13 @@ class Trainer:
     else:
       raise AssertionError('word_list not found')
     if self.is_many_to_one:
-      net = RNN_M2O(len(word_list), self.embedding_len, use_adam=True,
-                    use_cuda=self.use_cuda)
+      net = RNN_M2O(len(word_list), self.embedding_len,
+                    self.hidden_size, self.learning_rate, self.num_hidden_layer,
+                    self.drop_rate, use_adam=True, use_cuda=self.use_cuda)
     else:
-      net = RNN_M2M(len(word_list), self.embedding_len, use_adam=True,
-                    use_cuda=self.use_cuda)
+      net = RNN_M2M(len(word_list), self.embedding_len,
+                    self.hidden_size, self.learning_rate, self.num_hidden_layer,
+                    self.drop_rate, use_adam=True, use_cuda=self.use_cuda)
     status, _epoch_index, _perplexity_history, _min_perplexity = self._load(net, id)
     if status:
       word_index_dict = {w: i for i, w in enumerate(word_list)}
