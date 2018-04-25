@@ -16,7 +16,7 @@ def clean_str(string):
   string = re.sub(r'\[Footnote [0-9]+\:.+\]', ' ', string)
   string = re.sub(r'\^[0-9]+', ' ', string)
   # Limit character set
-  string = re.sub(r'[^A-Za-z0-9,!?\(\)\.\'\`\"]', ' ', string)
+  string = re.sub(r'[^A-Za-z0-9,!?\(\)\.\'\`\"\-]', ' ', string)
   # Let <num> symbolizes numbers
   string = re.sub(r'[0-9]+', ' <num> ', string)
   # Add space around quotes
@@ -24,9 +24,11 @@ def clean_str(string):
   # Separate short forms
   string = re.sub(r'(\'s|\'ve|n\'t|\'re|\'d|\'ll|\.|,|!|\?|\(|\))',
                   r' \1 ', string)
+  # Add space around '--'
+  string = re.sub(r'\-\-', ' -- ', string)
   # Remove consecutive space
   string = re.sub(r'\s{2,}', ' ', string)
-  # # Insert newline characters
-  # string = re.sub(r'(,|\.|!|\?|;) ([^\'\"])', r'\1\n\2', string)
+  # Insert newline characters
+  string = re.sub(r'(,|\.|!|\?|;) ([^\'\"])', r'\1\n\2', string)
   # Lower case
   return string.strip()
