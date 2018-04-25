@@ -6,6 +6,7 @@ train model
 import gzip
 import os
 import pickle
+import shutil
 import sys
 from collections import deque
 from zipfile import ZipFile
@@ -68,6 +69,10 @@ class Trainer:
       identity = self.identity
     if self.use_tensorboard:
       from tensorboardX import SummaryWriter
+      if os.path.exists(identity+'_logs'):
+        should_rm = input(' - Log dir exists. Remove (Y/n)?')
+        if should_rm.lower() == 'y' or should_rm == '':
+          shutil.rmtree(identity+'_logs')
       self.writer = SummaryWriter(identity+'_logs')
 
     train_data_loader = data_manager.train_loader()
@@ -106,6 +111,7 @@ class Trainer:
           loss = loss_fn(output.view(-1, len(data_manager.word_list)), label.view(-1))
           optimizer.zero_grad()
           loss.backward()
+          T.nn.utils.clip_grad_norm(net.parameters(), .25)
           optimizer.step()
           losses += loss.data.cpu()[0] * data.size(0)
           counter += data.size(0)
