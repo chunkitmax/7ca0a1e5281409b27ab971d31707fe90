@@ -81,7 +81,7 @@ class DataManager:
     if self.is_test:
       if not self._load_dataset():
         self._read_files()
-        self.dataset = Dataset(self.data, self.word_index_dict, is_many_to_one, max_seq-1)
+        self.dataset = Dataset(self.data, self.word_index_dict, is_many_to_one, self.max_seq-1)
         pickle.dump(self.dataset, open('data/test_data', 'wb+'))
     else:
       if not self._load_dataset():
@@ -132,8 +132,10 @@ class DataManager:
 
       if self.train_dataset is None and self.valid_dataset is None:
         # Save training and validation dataset
-        self.train_dataset = Dataset(train_data, self.word_index_dict, is_many_to_one, max_seq-1)
-        self.valid_dataset = Dataset(valid_data, self.word_index_dict, is_many_to_one, max_seq-1)
+        self.train_dataset = Dataset(train_data, self.word_index_dict,
+                                     is_many_to_one, self.max_seq-1)
+        self.valid_dataset = Dataset(valid_data, self.word_index_dict,
+                                     is_many_to_one, self.max_seq-1)
         pickle.dump(self.train_dataset, open('data/train_data'+self.file_path_subfix, 'wb+'))
         pickle.dump(self.valid_dataset, open('data/valid_data'+self.file_path_subfix, 'wb+'))
 
