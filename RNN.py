@@ -24,7 +24,8 @@ class RNN_M2M(T.nn.Module):
     self.use_rmsprop = use_rmsprop
     self._build_model()
   def _build_model(self):
-    self.Embedding = T.nn.Embedding(self.word_list_len, self.embedding_len, padding_idx=0)
+    self.Embedding = T.nn.Embedding(self.word_list_len, self.embedding_len, padding_idx=0,
+                                    scale_grad_by_freq=True)
     self.RNN = T.nn.GRU(input_size=self.embedding_len, hidden_size=self.hidden_size,
                         num_layers=self.num_layers, batch_first=True, dropout=self.drop_rate)
     self.Fc = T.nn.Linear(self.hidden_size, self.word_list_len)
@@ -69,7 +70,8 @@ class RNN_M2O(T.nn.Module):
     self.use_rmsprop = use_rmsprop
     self._build_model()
   def _build_model(self):
-    self.Embedding = T.nn.Embedding(self.word_list_len, self.embedding_len, padding_idx=0)
+    self.Embedding = T.nn.Embedding(self.word_list_len, self.embedding_len, padding_idx=0,
+                                    scale_grad_by_freq=True)
     self.RNN = T.nn.GRU(input_size=self.embedding_len, hidden_size=self.hidden_size,
                         num_layers=self.num_layers, batch_first=True, dropout=self.drop_rate)
     self.Fc = T.nn.Linear(self.hidden_size, self.word_list_len)
