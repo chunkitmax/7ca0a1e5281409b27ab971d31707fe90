@@ -1,5 +1,7 @@
-from train import Trainer
 import argparse
+import os
+
+from train import Trainer
 
 parser = argparse.ArgumentParser(description='RNN-text-generation')
 parser.add_argument('mode', type=str, help='Many-to-One (M2O) or Many-to-Many (M2M)')
@@ -39,7 +41,17 @@ def main():
                     identity=Args.identity, early_stopping=Args.early_stopping)
   if Args.test:
     start_text = input('Text starts with: ')
-    trainer.test(start_text, 'M2M_best')
+    file_list = os.listdir()
+    file_list = list(filter(lambda x: x.endswith('_best'), file_list))
+    selected_index = input('Please select saved model:\n*'+ \
+                          '\n'.join([': '.join(line)
+                                     for line in zip([str(x) for x in list(range(len(file_list)))],
+                                                     file_list)])+'\nIndex: ')
+    try:
+      selected_index = int(selected_index)
+    except ValueError:
+      selected_index = 0
+    trainer.test(start_text, file_list[selected_index])
   else:
     trainer.train()
 
