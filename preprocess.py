@@ -26,7 +26,7 @@ def clean_str(string):
                   r' \1 ', string)
   # Remove consecutive space
   string = re.sub(r'\s{2,}', ' ', string)
-  # Insert newline characters
-  string = re.sub(r'(,|\.|!|\?|;) ([^\'\"])', r'\1\n\2', string)
+  # # Insert newline characters
+  # string = re.sub(r'(,|\.|!|\?|;) ([^\'\"])', r'\1\n\2', string)
   # Lower case
   return string.strip()
