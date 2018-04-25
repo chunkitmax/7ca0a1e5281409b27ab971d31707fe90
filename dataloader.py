@@ -11,6 +11,7 @@ import re
 from collections import Counter
 from zipfile import ZipFile
 
+from collections import deque
 import numpy as np
 import torch as T
 import torch.utils.data as Data
@@ -39,6 +40,7 @@ class Dataset(Data.Dataset):
       for entry in data:
         self.data.append(entry[:-1]+[0]*(sentence_len-len(entry)+1))
         self.label.append(entry[1:]+[0]*(sentence_len-len(entry)+1))
+      print(self.data[0])
 
   def __getitem__(self, index):
     return T.LongTensor(self.data[index]), T.LongTensor(self.label[index])
@@ -47,9 +49,9 @@ class Dataset(Data.Dataset):
     return len(self.data)
 
 class DataManager:
-  def __init__(self, batch_size=50, max_seq=30, logger=None,
+  def __init__(self, batch_size=50, max_seq=7, logger=None,
                is_many_to_one=False, train_valid_ratio=.2, is_test=False,
-               data_file_count=-1):
+               data_split_mode='window', data_file_count=-1):
     self.batch_size = batch_size
     self.max_seq = max_seq
     if logger is None:
@@ -57,6 +59,9 @@ class DataManager:
     else:
       self.logger = logger
     self.is_test = is_test
+    self.data_split_mode = data_split_mode
+    if self.data_split_mode not in ['window', 'sentence']:
+      raise AssertionError('unknown split mode')
     self.data_file_count = data_file_count
 
     # Reserve for <sos>
@@ -182,21 +187,33 @@ class DataManager:
             if f.filename.startswith(self.file_path_prefix):
               text = zf.read(f.filename).decode('utf-8').lower()
               text = text[text.rindex('*end*')+len('*end*'):text.rindex('end')]
-              self.data += clean_str(text)+'\n'
+              self.data += clean_str(text)+' \n '
               valid_file_counter += 1
               self.logger.i('Loading %3d docs'%(valid_file_counter))
               if valid_file_counter >= file_count:
                 break
-      self.data = [['<sos>']+entry.split(' ') for entry in self.data.split('\n')]
-      # Limit sentense len
-      def spliter(d):
-        for i in range(math.ceil(len(d)/self.max_seq)):
-          yield d[self.max_seq*i:self.max_seq*(i+1)]
-      for index, entry in enumerate(self.data):
-        if len(entry) > self.max_seq:
-          splits = list(spliter(entry))
-          self.data[index] = splits[0]
-          self.data.extend(splits[1:])
+      if self.data_split_mode == 'window':
+        tmp_data = self.data
+        self.data = []
+        window = deque(maxlen=self.max_seq)
+        window.append('<sos>')
+        for word in tmp_data.strip().split(' '):
+          if word == '\n':
+            word = '<sos>'
+          window.append(word)
+          if len(window) == self.max_seq:
+            self.data.append(window.copy())
+      else:
+        self.data = [['<sos>']+entry.split(' ') for entry in self.data.split('\n')]
+        # Limit sentense len
+        def spliter(d):
+          for i in range(math.ceil(len(d)/self.max_seq)):
+            yield d[self.max_seq*i:self.max_seq*(i+1)]
+        for index, entry in enumerate(self.data):
+          if len(entry) > self.max_seq:
+            splits = list(spliter(entry))
+            self.data[index] = splits[0]
+            self.data.extend(splits[1:])
       self.data = list(filter(lambda x: len(x) > 2, self.data))
     else:
       raise AssertionError('hw4_dataset.zip not found')
