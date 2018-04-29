@@ -107,3 +107,7 @@ RNN_tutorial
 *_logs
 .vscode
 *_best
+data_*
+files_used
+glove*
+nohup*
