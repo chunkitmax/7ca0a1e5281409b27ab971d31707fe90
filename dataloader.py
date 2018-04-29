@@ -51,7 +51,7 @@ class Dataset(Data.Dataset):
 class DataManager:
   def __init__(self, batch_size=50, max_seq=7, logger=None,
                is_many_to_one=False, train_valid_ratio=.2, is_test=False,
-               data_split_mode='window', data_file_count=-1):
+               data_split_mode='window', data_file_count=-1, pretrained_file=None):
     self.batch_size = batch_size
     self.max_seq = max_seq
     if logger is None:
@@ -63,6 +63,7 @@ class DataManager:
     if self.data_split_mode not in ['window', 'sentence']:
       raise AssertionError('unknown split mode')
     self.data_file_count = data_file_count
+    self.pretrained_file = pretrained_file
 
     # Reserve for <sos>
     self.max_seq += 1
@@ -81,7 +82,13 @@ class DataManager:
     self.train_dataset, self.valid_dataset = None, None
     self.word_counter = None
 
-    self._load_wordlist()
+    self.tensors = None
+    if self.pretrained_file is not None:
+      self.tensors = T.Tensor(self._load_from_pretrain())
+      self.word_index_dict = {w: i for i, w in enumerate(self.word_list)}
+      is_wordlist_loaded = True
+    else:
+      is_wordlist_loaded = self._load_wordlist()
 
     if self.is_test:
       if not self._load_dataset():
@@ -99,7 +106,8 @@ class DataManager:
                                                     random_state=0)
           pickle.dump(train_data, open('data/train_data', 'wb+'))
           pickle.dump(valid_data, open('data/valid_data', 'wb+'))
-      if not self._load_wordlist() or not os.path.exists('data/word_counter'):
+      if (not is_wordlist_loaded or not os.path.exists('data/word_counter')) \
+            and self.pretrained_file is None:
         # Generate word list
         self.logger.i('Start counting words because word list or word counter not found...')
         self.word_counter = Counter()
@@ -217,6 +225,45 @@ class DataManager:
       self.data = list(filter(lambda x: len(x) > 2, self.data))
     else:
       raise AssertionError('hw4_dataset.zip not found')
+  def _load_from_pretrain(self):
+    self.logger.i('Loading pre-trained embeddings...')
+    if not (os.path.exists('data/pre_trained_word_list') \
+            and os.path.exists('data/pre_trained_embeddings')):
+      self.word_list = ['<pad>', '<sos>', '<unk>', '<num>']
+      tensors = [[], [], [], []]
+      special_word_dict = {'<pad>': 0, '<sos>': 1, '<unk>': 2,
+                           '<unknown>': 2, '<num>': 3, '<number>': 3}
+      is_digit = re.compile(r'^[0-9e\.\-\+]+$')
+      is_in_limited_char_set = re.compile(r'^[A-Za-z0-9,!?\(\)\.\'\`\"\-]+$')
+      with open(self.pretrained_file, 'r') as pt:
+        lines = pt.readlines()
+        num_line = len(lines)
+        for index, line in enumerate(lines):
+          word, *embedding = line.strip().split()
+          embedding = [float(value) for value in embedding]
+          if len(embedding) < 100: # May be caused by emojis / rear words
+            continue
+          if word in special_word_dict.keys():
+            tensors[special_word_dict[word]] = embedding
+          elif (is_digit.search(word) is not None or \
+                is_in_limited_char_set.search(word) is not None) \
+                  and not word.startswith('<'):
+            self.word_list.append(word)
+            tensors.append(embedding)
+          self.logger.d('Loading pre-trained embeddings %6d / %6d...'%(index, num_line))
+      # Check if any special symbol has empty embedding
+      for i in range(4):
+        if len(tensors[i]) == 0:
+          tensors[i] = [0.]*len(tensors[4])
+      pickle.dump(self.word_list, open('data/pre_trained_word_list', 'wb+'))
+      pickle.dump(tensors, open('data/pre_trained_embeddings', 'wb+'))
+    else:
+      self.logger.i('Pre trained wordlist and embeddings data found!')
+      self.word_list = pickle.load(open('data/pre_trained_word_list', 'rb'))
+      tensors = pickle.load(open('data/pre_trained_embeddings', 'rb'))
+    return tensors
+  def pretrained_embeddings(self):
+    return self.tensors
   def test_loader(self):
     return Data.DataLoader(self.dataset, self.batch_size, False)
   def train_loader(self):

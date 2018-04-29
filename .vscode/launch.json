@@ -37,8 +37,10 @@
         "M2M",
         "--gpu",
         "--tensorboard",
-        "--data_file_count=10",
-        "--batch_size=10"
+        "--data_file_count=3",
+        "--batch_size=10",
+        "--drop_rate=0.5",
+        "--pre_train=glove.twitter.27B.100d.txt"
       ]
     },
     {

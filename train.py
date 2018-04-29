@@ -25,7 +25,8 @@ class Trainer:
                drop_rate=0., embedding_len=100, use_tensorboard=False,
                early_stopping_history_len=7, early_stopping_allowance=3,
                verbose=1, save_best_model=False, use_cuda=False,
-               data_file_count=-1, identity=None, early_stopping=False):
+               data_file_count=-1, identity=None, early_stopping=False,
+               pre_train=None):
     self.logger = Logger(verbose_level=verbose)
     self.is_many_to_one = is_many_to_one
     self.max_epoch = max_epoch
@@ -44,22 +45,27 @@ class Trainer:
     self.data_file_count = data_file_count
     self.identity = identity
     self.early_stopping = early_stopping
+    self.pre_train = pre_train
   def train(self):
     if self.is_many_to_one:
       data_manager = DataManager(self.batch_size, logger=self.logger,
                                  is_many_to_one=self.is_many_to_one,
-                                 data_file_count=self.data_file_count)
+                                 data_file_count=self.data_file_count,
+                                 pretrained_file=self.pre_train)
       net = RNN_M2O(len(data_manager.word_list), self.embedding_len,
                     self.hidden_size, self.learning_rate, self.num_hidden_layer,
-                    self.drop_rate, use_adam=True, use_cuda=self.use_cuda)
+                    self.drop_rate, use_adam=True, use_cuda=self.use_cuda,
+                    pretrained_emb=data_manager.pretrained_embeddings())
       self._train(net, data_manager)
     else:
       data_manager = DataManager(self.batch_size, logger=self.logger,
                                  is_many_to_one=self.is_many_to_one,
-                                 data_file_count=self.data_file_count)
+                                 data_file_count=self.data_file_count,
+                                 pretrained_file=self.pre_train)
       net = RNN_M2M(len(data_manager.word_list), self.embedding_len,
                     self.hidden_size, self.learning_rate, self.num_hidden_layer,
-                    self.drop_rate, use_adam=True, use_cuda=self.use_cuda)
+                    self.drop_rate, use_adam=True, use_cuda=self.use_cuda,
+                    pretrained_emb=data_manager.pretrained_embeddings())
       self._train(net, data_manager)
   def _train(self, net, data_manager):
     if self.identity is None:
@@ -171,7 +177,7 @@ class Trainer:
       self.writer.close()
     self.logger.i('Finish', True)
     return np.mean(perplexity_history)
-  def test(self, given_words, id, max_len=20):
+  def test(self, given_words, id, max_len=30):
     if os.path.exists('data/word_list'):
       word_list = pickle.load(open('data/word_list', 'rb'))
     else:
@@ -190,30 +196,18 @@ class Trainer:
       given_words = given_words.lower().strip().split()
       given_words = [1]+[word_index_dict[word] if word in word_index_dict else 2
                          for word in given_words]
-      cur_var = T.autograd.Variable(T.LongTensor([given_words]))
-      if self.use_cuda:
-        cur_var = cur_var.cuda()
-      net.eval()
-      _, predicted = net(cur_var)
-      if self.is_many_to_one:
-        predicted_word_idx = predicted[0].cpu().data[0]
-      else:
-        predicted_word_idx = predicted[0, -1].cpu().data[0]
-      if predicted_word_idx > 0:
-        given_words.append(predicted_word_idx)
-        for _ in range(max_len-len(given_words)):
-          cur_var = T.autograd.Variable(T.LongTensor([given_words]))
+      state = None
+      for i in range(max_len):
+        if i < len(given_words):
+          cur_var = T.autograd.Variable(T.LongTensor([[given_words[i]]]))
           if self.use_cuda:
             cur_var = cur_var.cuda()
-          _, predicted = net(cur_var)
-          if self.is_many_to_one:
-            predicted_word_idx = predicted[0].cpu().data[0]
-          else:
-            predicted_word_idx = predicted[0, -1].cpu().data[0]
-          if predicted_word_idx > 0:
-            given_words.append(predicted_word_idx)
-          else:
-            break
+          _, predicted, state = net(cur_var, state, return_states=True)
+          if i >= len(given_words)-1:
+            if predicted[0].cpu().data[0] > 0:
+              given_words.append(predicted[0].cpu().data[0])
+            else:
+              break
       print('Text generated: %s'%(' '.join([word_list[word] for word in given_words[1:]])))
       print('Finished')
     else:

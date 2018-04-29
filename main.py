@@ -21,6 +21,7 @@ parser.add_argument('-tb', '--tensorboard', action='store_true', help='TensorBoa
 parser.add_argument('-v', '--verbose', default=1, type=int, help='Verbose level')
 parser.add_argument('-dfc', '--data_file_count', default=-1, type=int,
                     help='Max number of data file used for generating training set')
+parser.add_argument('-pt', '--pre_train', default=None, type=str, help='Pre-trained embedding file')
 
 Args = parser.parse_args()
 
@@ -38,7 +39,8 @@ def main():
                     drop_rate=Args.drop_rate, use_tensorboard=Args.tensorboard,
                     use_cuda=Args.gpu, save_best_model=True,
                     verbose=Args.verbose, data_file_count=Args.data_file_count,
-                    identity=Args.identity, early_stopping=Args.early_stopping)
+                    identity=Args.identity, early_stopping=Args.early_stopping,
+                    pre_train=Args.pre_train)
   if Args.test:
     start_text = input('Text starts with: ')
     file_list = os.listdir()
