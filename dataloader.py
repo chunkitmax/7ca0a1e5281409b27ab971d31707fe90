@@ -190,6 +190,7 @@ class DataManager:
           file_count = self.data_file_count
         self.logger.i('Start loading dataset...')
         valid_file_counter = 0
+        file_list = []
         for f in zf.filelist:
           if f.file_size > 0:
             if f.filename.startswith(self.file_path_prefix):
@@ -197,9 +198,13 @@ class DataManager:
               text = text[text.rindex('*end*')+len('*end*'):text.rindex('end')]
               self.data += clean_str(text)+' \n '
               valid_file_counter += 1
+              file_list.append(f.filename)
               self.logger.i('Loading %3d docs'%(valid_file_counter))
               if valid_file_counter >= file_count:
                 break
+        with open('files_used', 'w+') as fu:
+          for file_name in file_list:
+            fu.write(file_name+'\n')
       if self.data_split_mode == 'window':
         tmp_data = self.data
         self.data = []
