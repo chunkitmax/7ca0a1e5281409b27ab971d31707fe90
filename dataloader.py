@@ -94,7 +94,7 @@ class DataManager:
       if not self._load_dataset():
         self._read_files()
         self.dataset = Dataset(self.data, self.word_index_dict, is_many_to_one, self.max_seq-1)
-        pickle.dump(self.dataset, open('data/test_data', 'wb+'))
+        pickle.dump(self.dataset, open('data/test_data'+self.file_path_subfix, 'wb+'))
     else:
       if not self._load_dataset():
         # Load previous split data
@@ -154,9 +154,9 @@ class DataManager:
 
       self.logger.i('Finish Generating training set and validation set')
   def _load_dataset(self):
-    if self.is_test and os.path.exists('data/test_data'):
-      self.dataset = pickle.load(open('data/test_data', 'rb'))
-    elif os.path.exists('data/train_data'+self.file_path_subfix) \
+    if self.is_test and os.path.exists('data/test_data'+self.file_path_subfix):
+      self.dataset = pickle.load(open('data/test_data'+self.file_path_subfix, 'rb'))
+    elif not self.is_test and os.path.exists('data/train_data'+self.file_path_subfix) \
          and os.path.exists('data/valid_data'+self.file_path_subfix):
       self.train_dataset = pickle.load(open('data/train_data'+self.file_path_subfix, 'rb'))
       self.valid_dataset = pickle.load(open('data/valid_data'+self.file_path_subfix, 'rb'))

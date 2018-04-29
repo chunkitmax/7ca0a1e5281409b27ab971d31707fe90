@@ -52,7 +52,7 @@
         "M2M",
         "--gpu",
         "--tensorboard",
-        "--data_file_count=3",
+        "--data_file_count=1",
         "--batch_size=10",
         "--test"
       ]
@@ -66,8 +66,36 @@
         "M2O",
         "--gpu",
         "--tensorboard",
-        "--data_file_count=3",
+        "--data_file_count=1",
+        "--batch_size=10",
         "--test"
+      ]
+    },
+    {
+      "name": "Train M2M Text Generate",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "args": [
+        "M2M",
+        "--gpu",
+        "--tensorboard",
+        "--data_file_count=3",
+        "--batch_size=10",
+        "--text_generate"
+      ]
+    },
+    {
+      "name": "Train M2O Text Generate",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "args": [
+        "M2O",
+        "--gpu",
+        "--tensorboard",
+        "--data_file_count=3",
+        "--text_generate"
       ]
     }
   ]
